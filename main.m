@@ -1,4 +1,4 @@
-
+clear; clc; close all;
 %givens:
 Kg = 33.3; %    total gear ratio
 Km = 0.0401; %   Motor Constant (V/(rad/sec) or Nm/amp)
