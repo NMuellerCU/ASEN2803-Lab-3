@@ -7,15 +7,17 @@
     data_import = readmatrix('data_2.txt');
     time_import = data_import(:,1);
     
-    time_import = time_import - time_import(1); %normalizes the time
-    idx = (time_import >= 5*1000) & (time_import <= 15*1000);
+    time_import = time_import - time_import(1); %normalize part 1
+    time_import_norm = (time_import/1000)-5; %normalizes by changing from ms to s and setting t=5 to 0
+    idx = (time_import_norm >= 0) & (time_import_norm <= 10); %gets index of positions before further normalizing
     
     %PLOT: Plot of hardware data
     figure; hold on;
 
     title('Hardware x position & Reference vs Time (5–15 sec)')
-    plot((time_import(idx)/1000)-5, data_import(idx,2))
-    plot((time_import(idx)/1000)-5, data_import(idx,6))
+    plot(time_import_norm(idx), data_import(idx,2))
+    plot(time_import_norm(idx), data_import(idx,6))
+
     xlabel('time (s)')
     ylabel('x (rad)')
     legend('actual', 'reference data','Location','best')
@@ -87,16 +89,78 @@
     end
     hold off;
     
+  
+
+    %PLOT: plot of just K_1 =15 and K_3 = 1
+    figure;
+    hold on;
+    title('Simulated Output (K_1=15, K_3=1)')
+    
+    plot(t,ref_val);
+    sysTF = tf(n1(1), [d2(1) d1(1) d0(1)]); %first is numerator, second is denominator (this one resets the previous values working only if the first index is 15 1
+    y = lsim(sysTF, ref_val, t);
+
+    plot(t, y, 'LineWidth', 1.5);
+    xline([1 6], '--k') 
+    
+    legend('reference data', labels{1},'+1 second bound','Location','best')
+    hold off;
+
+
     %PLOT: plot of comparison between computed and Hardware data for K1 = 15. K3 = 1
     figure;
     hold on;
     title('Hardware vs Simulated Output (K_1=15, K_3=1)')
 
-    plot((time_import(idx)/1000)-5, data_import(idx,2))
-    plot((time_import(idx)/1000)-5, data_import(idx,6),'LineWidth',1.25)
-    
+    plot(time_import_norm(idx), data_import(idx,2))
+    plot(time_import_norm(idx), data_import(idx,6),'LineWidth',1.25)
+        
     sysTF = tf(n1(1), [d2(1) d1(1) d0(1)]); %first is numerator, second is denominator (this one resets the previous values working only if the first index is 15 1
     y = lsim(sysTF, ref_val, t);
+
+    %code for finding percent overshoot (simulation)
+    [y_max_sim, idx_max_sim] = max(y);       
+    t_max_sim = t(idx_max_sim); 
+    PO_sim = (y_max_sim-theta_D)/theta_D*100;
+    PO_label = sprintf('Percent Overshoot = %.1f%%',PO_sim);
+
+    %code for 5% settling time (simulation)
+    upper5 = 1.05*theta_D;
+    lower5 = 0.95*theta_D;
+    idx_5_sim = find((y < lower5 | y > upper5) & t < 5);%finds all times when our vals are outside of the 5% bounds
+    if isempty(idx_5_sim)
+        t5_sim = 0;
+    else
+        t5_sim = t(idx_5_sim(end)+1);
+    end
+    t5_label = sprintf('Settling time, t_s = %.1f%s',t5_sim);
+
+    %code for finding percent overshoot (real) (doesnt work because real
+    %never gets close enough to 0.5 rad to be in 0.5,
+    % bounds = (0 < time_import_norm) < 5;%sets time boundary indexs
+    % t_in_bnd = time_import_norm(bounds);%finds times in time boundary
+    % y_in_bnd = data_import(bounds,2);%finds y values in time boundary
+    % 
+    % [y_max_real, idx_max_real] = max(y_in_bnd);       
+    % t_max_real = t_in_bnd(idx_max_real); 
+    % PO_real = (y_max_real-theta_D)/theta_D*100;
+    % PO_label_real = sprintf('Percent Overshoot = %.1f%%',PO_real);
+    % 
+    % %code for 5% settling time (real)
+    % idx_5_real = find((y_in_bnd < lower5 | y_in_bnd > upper5) & t_in_bnd < 5);%finds all times when our vals are outside of the 5% bounds
+    % if isempty(idx_5_real)
+    %     t5_real = 0;
+    % else
+    %     t5_real = t_in_bnd(idx_5_real(end)+1);
+    % end
+    % t5_label_real = sprintf('Settling time, t_s = %.1f%s',t5_real);
+
     plot(t, y, 'LineWidth', 1.5);
-    legend('actual', 'reference data', labels{1},'Location','best')
+    plot(t_max_sim, y_max_sim, 'ko')
+    xline(t5_sim, '--k')
+    % plot(t_max_real, y_max_real, 'ko')
+    % xline(t5_real, '--k')
+    
+    %PO_label_real, t5_label_real,
+    legend('actual', 'reference data', labels{1},PO_label,t5_label,'Location','NorthEast')
     hold off;
