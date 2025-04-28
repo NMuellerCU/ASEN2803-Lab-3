@@ -4,6 +4,8 @@
     Km = 0.0401; %   Motor Constant (V/(rad/sec) or Nm/amp)
     J = 0.0005 + (0.2 * (0.2794.^2)) + 0.0015; %    Total Inertia (J = Jhub + J_load + J_extra) (Kgm^2)
     Rm = 19.2; %    Armature Resistance (Ohms)
+    B =0.2; %estimated natural damping for the system
+
     data_import = readmatrix('data_2.txt');
     time_import = data_import(:,1);
     
@@ -40,6 +42,7 @@
     figure; 
     hold on;
     % numerator and denomenator assigning
+
     for i=1:length(K1)
         n1(i) = K1(i)*Kg*Km / (J*Rm); %numerator
         d2(i) = s.^2; %denominator ^2
@@ -49,6 +52,8 @@
         %V_in
         V_in(i) = K1(i)*(theta_D-theta_L)-s*K3(i)*theta_L;%calculates the voltage for each value, makes sure that voltage is not over limit
     end
+   
+
     
     amplitude = 0.5;% rad, amplitude
     T = 10; % s period for wave
@@ -61,7 +66,29 @@
         plot(t,y, 'LineWidth', 1.5);
         labels{i} = sprintf('K_1=%g, K_3=%g', K1(i), K3(i));%creates labels for legend
     end
+
+
+    %part 2 for natural damping;
+        for i=1:length(K1)
+        n12(i) = K1(i)*Kg*Km / (J*Rm); %numerator
+        d22(i) = s.^2; %denominator ^2
+        d12(i) = s.^1 * ( ((Kg.^2)*(Km.^2) / (J*Rm))  +  (K3(i)*Kg*Km / (J*Rm)) + (B / J)); % denominator ^1
+        d02(i) = K1(i).*Kg*Km / (J*Rm); %denominator ^0
     
+        %V_in
+        V_in(i) = K1(i)*(theta_D-theta_L)-s*K3(i)*theta_L;%calculates the voltage for each value, makes sure that voltage is not over limit
+    end
+   
+    
+    for i = 1:length(K1)
+        sysTF2 = tf(n12(i), [d22(i) d12(i) d02(i)]); %first is numerator, second is denominator
+        y2 = lsim(sysTF2, ref_val, t);%key part, makes sysTF attempt to follow ref_val (similar to actual hardware)
+
+    end
+    %part 2 for natural dampingEND
+
+
+
     plot(t, ref_val,  'k', 'LineWidth', 1);%plot for reference value
     labels{end} = sprintf('Ref = %g rad', theta_D);%add reference value to legend
     title('Closed-Loop response for K1 and K3 values vs time')
@@ -110,13 +137,14 @@
     %PLOT: plot of comparison between computed and Hardware data for K1 = 15. K3 = 1
     figure;
     hold on;
-    title('Hardware vs Simulated Output (K_1=15, K_3=1)')
+    title('Hardware vs Simulated Output (K_1=15, K_3=1) vs Damped Simulated Output')
 
     plot(time_import_norm(idx), data_import(idx,2))
     plot(time_import_norm(idx), data_import(idx,6),'LineWidth',1.25)
         
     sysTF = tf(n1(1), [d2(1) d1(1) d0(1)]); %first is numerator, second is denominator (this one resets the previous values working only if the first index is 15 1
     y = lsim(sysTF, ref_val, t);
+    
 
     %code for finding percent overshoot (simulation)
     [y_max_sim, idx_max_sim] = max(y);       
@@ -154,13 +182,16 @@
     %     t5_real = t_in_bnd(idx_5_real(end)+1);
     % end
     % t5_label_real = sprintf('Settling time, t_s = %.1f%s',t5_real);
+    
+
 
     plot(t, y, 'LineWidth', 1.5);
-    plot(t_max_sim, y_max_sim, 'ko')
+    plot(t,y2, 'LineWidth', 1.5);
+    plot(t_max_sim, y_max_sim, 'ko');
     xline(t5_sim, '--k')
     % plot(t_max_real, y_max_real, 'ko')
     % xline(t5_real, '--k')
     
     %PO_label_real, t5_label_real,
-    legend('actual', 'reference data', labels{1},PO_label,t5_label,'Location','NorthEast')
+    legend('actual', 'reference data', labels{1}, 'Simulated plots w/ damping coefficient' ,PO_label,t5_label,'Location','NorthEast')
     hold off;
